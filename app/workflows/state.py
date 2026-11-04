@@ -14,3 +14,12 @@ class ImageAgentState(TypedDict):
     generation_result: Optional[Dict[str, Any]]
     error: Optional[str]
 
+class VideoAgentState(TypedDict):
+    """
+    State schema for the Video AI Agent LangGraph workflow.
+    Tracks input prompt, generation seed, model metadata, and video output.
+    """
+    prompt: str
+    seed: Optional[int]
+    video_result: Optional[Dict[str, Any]]
+    error: Optional[str]

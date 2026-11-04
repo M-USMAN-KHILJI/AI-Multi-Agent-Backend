@@ -6,6 +6,8 @@ from app.core.config import settings
 from app.api.health import router as health_router
 from app.api.chat import router as chat_router
 from app.api.images import router as images_router
+from app.api.videos import router as videos_router
+from app.api.audio import router as audio_router
 
 def create_application() -> FastAPI:
     """
@@ -29,14 +31,19 @@ def create_application() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Static files mounting for generated assets (images, audio previews, video frames)
+    # Static files mounting for generated assets (images, videos, audio)
     os.makedirs(settings.GENERATED_DIR, exist_ok=True)
+    os.makedirs(os.path.join(settings.GENERATED_DIR, "images"), exist_ok=True)
+    os.makedirs(os.path.join(settings.GENERATED_DIR, "videos"), exist_ok=True)
+    os.makedirs(os.path.join(settings.GENERATED_DIR, "audio"), exist_ok=True)
     app.mount("/generated", StaticFiles(directory=settings.GENERATED_DIR), name="generated")
 
     # Register Routers
     app.include_router(health_router, prefix="/api/v1")
     app.include_router(chat_router, prefix="/api/v1")
     app.include_router(images_router, prefix="/api/v1")
+    app.include_router(videos_router, prefix="/api/v1")
+    app.include_router(audio_router, prefix="/api/v1")
 
     @app.get("/")
     def root():

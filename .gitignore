@@ -23,3 +23,12 @@ htmlcov/
 .idea/
 *.swp
 *.swo
+
+# Generated & Uploaded Media Assets
+generated/
+uploads/
+*.wav
+*.mp4
+*.jpg
+*.jpeg
+*.png

@@ -1,7 +1,6 @@
 import os
 from typing import List
 from dotenv import load_dotenv
-
 # Load .env variables
 load_dotenv()
 
@@ -25,9 +24,24 @@ class Settings:
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
+    # NVIDIA Vision Configuration (Google PaliGemma VLM)
+    NVIDIA_VISION_API_KEY: str = os.getenv("NVIDIA_VISION_API_KEY", "")
+    NVIDIA_VISION_MODEL: str = os.getenv("NVIDIA_VISION_MODEL", "google/paligemma")
+    NVIDIA_VISION_URL: str = os.getenv("NVIDIA_VISION_URL", "https://ai.api.nvidia.com/v1/vlm/google/paligemma")
+
     # NVIDIA GenAI Configuration (FLUX 3 Image Klein)
     NVIDIA_API_KEY: str = os.getenv("NVIDIA_API_KEY", "")
     NVIDIA_FLUX_URL: str = os.getenv("NVIDIA_FLUX_URL", "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux-3-image-klein")
+
+    # Hugging Face Video Generation Configuration (Lightricks LTX-Video)
+    HUGGINGFACE_API_KEY: str = os.getenv("HUGGINGFACE_API_KEY", "")
+    HF_VIDEO_MODEL: str = os.getenv("HF_VIDEO_MODEL", "Lightricks/ltx-video-distilled")
+
+    # NVIDIA Resemble.AI Chatterbox Multilingual TTS
+    NVIDIA_TTS_API_KEY: str = os.getenv("NVIDIA_TTS_API_KEY", "")
+    NVIDIA_TTS_SERVER: str = os.getenv("NVIDIA_TTS_SERVER", "grpc.nvcf.nvidia.com:443")
+    NVIDIA_TTS_FUNCTION_ID: str = os.getenv("NVIDIA_TTS_FUNCTION_ID", "ddacc747-1269-4fab-bfd9-8f593dead106")
+    NVIDIA_TTS_VOICE: str = os.getenv("NVIDIA_TTS_VOICE", "Chatterbox-Multilingual.en-US.Male")
 
     # Storage Paths
     BASE_DIR: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))

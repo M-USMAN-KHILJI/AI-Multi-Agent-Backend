@@ -5,58 +5,86 @@ import time
 import wave
 import hashlib
 from typing import Dict, Any, Optional
-import riva.client
+import httpx
 from app.core.config import settings
 
 class AudioService:
     """
     Multimodal Audio Service:
-    - Text-to-Speech (TTS) via NVIDIA Resemble.AI Chatterbox Multilingual TTS
+    - Primary: ElevenLabs high-fidelity Neural TTS (default: Rachel / multilingual v2)
+    - Fallback: NVIDIA Resemble.AI Chatterbox Multilingual TTS
     - Automatic text normalization (strips markdown formatting for smooth speech)
     - MD5 audio caching for instantaneous playback on repeated sentences
-    - Optimized 22.05kHz audio packaging for low latency transfer
     """
     def __init__(self):
-        self.api_key = settings.NVIDIA_TTS_API_KEY
-        self.server = settings.NVIDIA_TTS_SERVER
-        self.function_id = settings.NVIDIA_TTS_FUNCTION_ID
-        self.default_voice = settings.NVIDIA_TTS_VOICE or "Chatterbox-Multilingual.en-US.Male"
+        # ElevenLabs Settings
+        self.elevenlabs_api_key = settings.ELEVENLABS_API_KEY
+        self.elevenlabs_voice_id = settings.ELEVENLABS_VOICE_ID or "21m00Tcm4TlvDq8ikWAM"
+        self.elevenlabs_model_id = settings.ELEVENLABS_MODEL_ID or "eleven_multilingual_v2"
+
+        # NVIDIA Riva Settings (Fallback)
+        self.nvidia_api_key = settings.NVIDIA_TTS_API_KEY
+        self.nvidia_server = settings.NVIDIA_TTS_SERVER
+        self.nvidia_function_id = settings.NVIDIA_TTS_FUNCTION_ID
+        self.nvidia_voice = settings.NVIDIA_TTS_VOICE or "Chatterbox-Multilingual.en-US.Male"
 
         self.generated_dir = os.path.join(settings.GENERATED_DIR, "audio")
         os.makedirs(self.generated_dir, exist_ok=True)
-        self._tts_client: Optional[riva.client.SpeechSynthesisService] = None
+        self._riva_client = None
 
-    def _get_client(self) -> riva.client.SpeechSynthesisService:
-        if self._tts_client is None:
+    def _get_riva_client(self):
+        if self._riva_client is None:
+            import riva.client
             auth = riva.client.Auth(
                 ssl_root_cert=None,
                 use_ssl=True,
-                uri=self.server,
+                uri=self.nvidia_server,
                 metadata_args=[
-                    ["function-id", self.function_id],
-                    ["authorization", f"Bearer {self.api_key}"]
+                    ["function-id", self.nvidia_function_id],
+                    ["authorization", f"Bearer {self.nvidia_api_key}"]
                 ]
             )
-            self._tts_client = riva.client.SpeechSynthesisService(auth)
-        return self._tts_client
+            self._riva_client = riva.client.SpeechSynthesisService(auth)
+        return self._riva_client
 
     def _clean_text_for_speech(self, text: str) -> str:
         """
         Removes Markdown symbols, links, code fences, and bullet characters
         so the synthesized speech sounds natural.
         """
-        # Remove URLs
         cleaned = re.sub(r'https?://\S+', '', text)
-        # Remove code blocks and inline code
         cleaned = re.sub(r'```.*?```', '', cleaned, flags=re.DOTALL)
         cleaned = re.sub(r'`[^`]*`', '', cleaned)
-        # Remove markdown bold/italic/headers
         cleaned = re.sub(r'[*_#~>]', '', cleaned)
-        # Remove bullet points and extra dashes
         cleaned = re.sub(r'^[•\-\*]\s+', '', cleaned, flags=re.MULTILINE)
-        # Collapse whitespace
         cleaned = re.sub(r'\s+', ' ', cleaned).strip()
         return cleaned
+
+    def _synthesize_elevenlabs(self, text: str, voice_id: str, output_path: str) -> None:
+        """
+        Calls ElevenLabs REST API to generate realistic speech in MP3.
+        """
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+        headers = {
+            "xi-api-key": self.elevenlabs_api_key,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "text": text,
+            "model_id": self.elevenlabs_model_id,
+            "voice_settings": {
+                "stability": 0.5,
+                "similarity_boost": 0.75,
+                "style": 0.05,
+                "use_speaker_boost": True
+            }
+        }
+        with httpx.Client(timeout=30.0) as client:
+            resp = client.post(url, json=payload, headers=headers)
+            if resp.status_code != 200:
+                raise RuntimeError(f"ElevenLabs API Error [{resp.status_code}]: {resp.text}")
+            with open(output_path, "wb") as f:
+                f.write(resp.content)
 
     def synthesize_speech(
         self,
@@ -67,8 +95,8 @@ class AudioService:
         retries: int = 2
     ) -> Dict[str, Any]:
         """
-        Synthesizes text into speech WAV audio via NVIDIA Resemble AI Chatterbox.
-        Uses MD5 content hashing to return cached audio instantly.
+        Synthesizes text into speech audio via ElevenLabs (or falls back to NVIDIA Riva).
+        Uses MD5 content hashing for instant cached responses.
         """
         if not text or not text.strip():
             raise ValueError("Text cannot be empty for speech synthesis.")
@@ -77,15 +105,22 @@ class AudioService:
         if not clean_text:
             clean_text = text.strip()
 
-        # Limit spoken text to first 600 characters for high responsiveness
-        if len(clean_text) > 600:
-            clean_text = clean_text[:600] + "..."
+        # Limit spoken text to first 1000 characters for optimal latency
+        if len(clean_text) > 1000:
+            clean_text = clean_text[:1000] + "..."
 
-        chosen_voice = voice_name or self.default_voice
+        # Check if ElevenLabs is configured
+        use_elevenlabs = bool(self.elevenlabs_api_key)
+        # If the frontend passes the legacy NVIDIA voice or empty string, default to ElevenLabs voice
+        if not voice_name or "Chatterbox" in voice_name:
+            chosen_voice = self.elevenlabs_voice_id if use_elevenlabs else self.nvidia_voice
+        else:
+            chosen_voice = voice_name
+        ext = "mp3" if use_elevenlabs else "wav"
 
         # ── Check Audio Cache ──
-        cache_key = hashlib.md5(f"{clean_text}_{chosen_voice}_{sample_rate_hz}".encode("utf-8")).hexdigest()
-        cached_filename = f"tts_{cache_key}.wav"
+        cache_key = hashlib.md5(f"{clean_text}_{chosen_voice}_{use_elevenlabs}".encode("utf-8")).hexdigest()
+        cached_filename = f"tts_{cache_key}.{ext}"
         cached_path = os.path.join(self.generated_dir, cached_filename)
 
         if os.path.exists(cached_path) and os.path.getsize(cached_path) > 1000:
@@ -97,35 +132,15 @@ class AudioService:
                 "voice": chosen_voice,
                 "language_code": language_code,
                 "size_bytes": os.path.getsize(cached_path),
-                "model": "resembleai/chatterbox-multilingual-tts",
+                "model": "elevenlabs/eleven_multilingual_v2" if use_elevenlabs else "resembleai/chatterbox-multilingual-tts",
                 "cached": True,
                 "status": "success"
             }
 
-        last_error = None
-        for attempt in range(retries):
+        # ── Try ElevenLabs ──
+        if use_elevenlabs:
             try:
-                client = self._get_client()
-                response = client.synthesize(
-                    text=clean_text,
-                    voice_name=chosen_voice,
-                    language_code=language_code,
-                    sample_rate_hz=sample_rate_hz
-                )
-
-                audio_data = response.audio
-                if not audio_data:
-                    raise RuntimeError("NVIDIA Chatterbox returned empty audio bytes.")
-
-                # Write raw PCM data into a valid RIFF/WAV audio container
-                with wave.open(cached_path, "wb") as wf:
-                    wf.setnchannels(1)                # Mono
-                    wf.setsampwidth(2)                # 16-bit PCM (2 bytes per sample)
-                    wf.setframerate(sample_rate_hz)   # 22050 Hz
-                    wf.writeframes(audio_data)
-
-                size_bytes = os.path.getsize(cached_path)
-
+                self._synthesize_elevenlabs(clean_text, chosen_voice, cached_path)
                 return {
                     "filename": cached_filename,
                     "file_path": cached_path,
@@ -133,19 +148,58 @@ class AudioService:
                     "text": clean_text,
                     "voice": chosen_voice,
                     "language_code": language_code,
-                    "size_bytes": size_bytes,
+                    "size_bytes": os.path.getsize(cached_path),
+                    "model": "elevenlabs/eleven_multilingual_v2",
+                    "cached": False,
+                    "status": "success"
+                }
+            except Exception as e:
+                # If ElevenLabs fails and NVIDIA is configured, fall back
+                if not self.nvidia_api_key:
+                    raise RuntimeError(f"ElevenLabs TTS failed: {str(e)}")
+
+        # ── Fallback: NVIDIA Chatterbox TTS ──
+        last_error = None
+        cached_filename_wav = f"tts_{cache_key}.wav"
+        cached_path_wav = os.path.join(self.generated_dir, cached_filename_wav)
+
+        for attempt in range(retries):
+            try:
+                client = self._get_riva_client()
+                response = client.synthesize(
+                    text=clean_text,
+                    voice_name=self.nvidia_voice,
+                    language_code=language_code,
+                    sample_rate_hz=sample_rate_hz
+                )
+                audio_data = response.audio
+                if not audio_data:
+                    raise RuntimeError("NVIDIA Chatterbox returned empty audio bytes.")
+
+                with wave.open(cached_path_wav, "wb") as wf:
+                    wf.setnchannels(1)
+                    wf.setsampwidth(2)
+                    wf.setframerate(sample_rate_hz)
+                    wf.writeframes(audio_data)
+
+                return {
+                    "filename": cached_filename_wav,
+                    "file_path": cached_path_wav,
+                    "url": f"/generated/audio/{cached_filename_wav}",
+                    "text": clean_text,
+                    "voice": self.nvidia_voice,
+                    "language_code": language_code,
+                    "size_bytes": os.path.getsize(cached_path_wav),
                     "model": "resembleai/chatterbox-multilingual-tts",
                     "cached": False,
                     "status": "success"
                 }
-
             except Exception as e:
                 last_error = str(e)
-                # Reset client cache in case gRPC channel dropped
-                self._tts_client = None
+                self._riva_client = None
                 if attempt < retries - 1:
                     time.sleep(0.5)
 
-        raise RuntimeError(f"NVIDIA Chatterbox TTS failed after {retries} attempts: {last_error}")
+        raise RuntimeError(f"Audio TTS synthesis failed: {last_error}")
 
 audio_service = AudioService()

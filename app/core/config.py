@@ -37,6 +37,11 @@ class Settings:
     HUGGINGFACE_API_KEY: str = os.getenv("HUGGINGFACE_API_KEY", "")
     HF_VIDEO_MODEL: str = os.getenv("HF_VIDEO_MODEL", "Lightricks/ltx-video-distilled")
 
+    # ElevenLabs Voice TTS Configuration
+    ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "")
+    ELEVENLABS_VOICE_ID: str = os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")  # Sarah: Mature, Reassuring, Confident
+    ELEVENLABS_MODEL_ID: str = os.getenv("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
+
     # NVIDIA Resemble.AI Chatterbox Multilingual TTS
     NVIDIA_TTS_API_KEY: str = os.getenv("NVIDIA_TTS_API_KEY", "")
     NVIDIA_TTS_SERVER: str = os.getenv("NVIDIA_TTS_SERVER", "grpc.nvcf.nvidia.com:443")

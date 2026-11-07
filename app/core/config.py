@@ -48,14 +48,15 @@ class Settings:
     NVIDIA_TTS_FUNCTION_ID: str = os.getenv("NVIDIA_TTS_FUNCTION_ID", "ddacc747-1269-4fab-bfd9-8f593dead106")
     NVIDIA_TTS_VOICE: str = os.getenv("NVIDIA_TTS_VOICE", "Chatterbox-Multilingual.en-US.Male")
 
-    # Storage Paths
-    BASE_DIR: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+    # Storage Paths (/tmp for Vercel Serverless environment, local directory otherwise)
+    IS_VERCEL: bool = bool(os.getenv("VERCEL"))
+    BASE_DIR: str = "/tmp" if os.getenv("VERCEL") else os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
     UPLOADS_DIR: str = os.path.join(BASE_DIR, "uploads")
     GENERATED_DIR: str = os.path.join(BASE_DIR, "generated")
 
     # Server settings
     HOST: str = os.getenv("HOST", "0.0.0.0")
     PORT: int = int(os.getenv("PORT", "8000"))
-    CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    CORS_ORIGINS: List[str] = ["*"]
 
 settings = Settings()

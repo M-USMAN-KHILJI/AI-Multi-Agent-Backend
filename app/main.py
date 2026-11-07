@@ -38,14 +38,22 @@ def create_application() -> FastAPI:
     os.makedirs(os.path.join(settings.GENERATED_DIR, "audio"), exist_ok=True)
     app.mount("/generated", StaticFiles(directory=settings.GENERATED_DIR), name="generated")
 
-    # Register Routers
+    # Register Routers (Mount at root /api/v1)
     app.include_router(health_router, prefix="/api/v1")
     app.include_router(chat_router, prefix="/api/v1")
     app.include_router(images_router, prefix="/api/v1")
     app.include_router(videos_router, prefix="/api/v1")
     app.include_router(audio_router, prefix="/api/v1")
 
+    # Also register at /api/index/api/v1 to natively support Vercel CLI 65 rewrite paths
+    app.include_router(health_router, prefix="/api/index/api/v1")
+    app.include_router(chat_router, prefix="/api/index/api/v1")
+    app.include_router(images_router, prefix="/api/index/api/v1")
+    app.include_router(videos_router, prefix="/api/index/api/v1")
+    app.include_router(audio_router, prefix="/api/index/api/v1")
+
     @app.get("/")
+    @app.get("/api/index")
     def root():
         return {
             "platform": settings.PROJECT_NAME,

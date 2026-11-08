@@ -7,13 +7,10 @@ load_dotenv()
 class Settings:
     PROJECT_NAME: str = os.getenv("PROJECT_NAME", "OmniAgent AI Platform")
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
-    DEBUG: bool = os.getenv("DEBUG", "True").lower() in ("true", "1")
+    DEBUG: bool = os.getenv("DEBUG", "False" if os.getenv("ENVIRONMENT", "development") == "production" else "True").lower() in ("true", "1")
 
     # Database
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        "postgresql+psycopg2://postgres:901a8520@localhost:5432/modeldb"
-    )
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "")
 
     # Groq LLM Configuration (Text AI Agent)
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
@@ -57,6 +54,10 @@ class Settings:
     # Server settings
     HOST: str = os.getenv("HOST", "0.0.0.0")
     PORT: int = int(os.getenv("PORT", "8000"))
-    CORS_ORIGINS: List[str] = ["*"]
+    CORS_ORIGINS: List[str] = [
+        origin.strip()
+        for origin in os.getenv("CORS_ORIGINS", "*").split(",")
+        if origin.strip()
+    ]
 
 settings = Settings()

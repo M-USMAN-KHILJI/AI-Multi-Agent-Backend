@@ -54,10 +54,21 @@ class Settings:
     # Server settings
     HOST: str = os.getenv("HOST", "0.0.0.0")
     PORT: int = int(os.getenv("PORT", "8000"))
-    CORS_ORIGINS: List[str] = [
-        origin.strip()
-        for origin in os.getenv("CORS_ORIGINS", "*").split(",")
-        if origin.strip()
-    ]
+    
+    @property
+    def CORS_ORIGINS(self) -> List[str]:
+        raw = os.getenv("CORS_ORIGINS", "*").strip()
+        if not raw or raw == "*":
+            return ["*"]
+        # Handle JSON array string like '["http://localhost:5173", ...]'
+        if raw.startswith("[") and raw.endswith("]"):
+            import json
+            try:
+                parsed = json.loads(raw)
+                return [str(o).strip() for o in parsed if str(o).strip()]
+            except Exception:
+                pass
+        # Handle comma-separated list
+        return [o.strip() for o in raw.split(",") if o.strip()]
 
 settings = Settings()

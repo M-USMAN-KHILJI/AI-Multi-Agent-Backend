@@ -36,3 +36,4 @@ In Railway, navigate to your service $\rightarrow$ **Variables** tab, and add th
 ### Step 3: Healthcheck & Verification
 - **Healthcheck Path:** `/api/v1/health` (returns `HTTP 200` without requiring API keys)
 - **Interactive Documentation:** `/docs` (Swagger UI)
+

@@ -8,6 +8,7 @@ from app.api.chat import router as chat_router
 from app.api.images import router as images_router
 from app.api.videos import router as videos_router
 from app.api.audio import router as audio_router
+from app.api.auth import router as auth_router
 
 def create_application() -> FastAPI:
     """
@@ -43,6 +44,7 @@ def create_application() -> FastAPI:
 
     # Register Routers (Mount at root /api/v1)
     app.include_router(health_router, prefix="/api/v1")
+    app.include_router(auth_router, prefix="/api/v1")
     app.include_router(chat_router, prefix="/api/v1")
     app.include_router(images_router, prefix="/api/v1")
     app.include_router(videos_router, prefix="/api/v1")
@@ -50,6 +52,7 @@ def create_application() -> FastAPI:
 
     # Also register at /api/index/api/v1 to natively support Vercel CLI 65 rewrite paths
     app.include_router(health_router, prefix="/api/index/api/v1")
+    app.include_router(auth_router, prefix="/api/index/api/v1")
     app.include_router(chat_router, prefix="/api/index/api/v1")
     app.include_router(images_router, prefix="/api/index/api/v1")
     app.include_router(videos_router, prefix="/api/index/api/v1")

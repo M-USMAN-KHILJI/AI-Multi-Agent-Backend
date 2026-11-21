@@ -49,3 +49,17 @@ class UserAuthResponse(BaseModel):
     avatar_url: Optional[str] = None
     token: str
     message: str
+    auth_provider: Optional[str] = "email"
+
+class ChangePasswordRequest(BaseModel):
+    user_id: str = Field(..., description="User ID")
+    current_password: str = Field(..., description="Current password")
+    new_password: str = Field(..., min_length=6, max_length=128, description="New password")
+
+class UserDetailsResponse(BaseModel):
+    id: str
+    name: str
+    email: str
+    avatar_url: Optional[str] = None
+    auth_provider: str
+    created_at: Optional[str] = None

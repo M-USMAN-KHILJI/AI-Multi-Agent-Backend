@@ -4,7 +4,14 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from sqlalchemy.orm import Session
 from app.database.connection import get_db
 from app.database.models import User
-from app.schemas.auth_schema import UserSignupRequest, UserLoginRequest, GoogleAuthRequest, UserAuthResponse
+from app.schemas.auth_schema import (
+    UserSignupRequest,
+    UserLoginRequest,
+    GoogleAuthRequest,
+    UserAuthResponse,
+    ChangePasswordRequest,
+    UserDetailsResponse,
+)
 from app.core.security import hash_password, verify_password
 
 logger = logging.getLogger(__name__)
@@ -55,6 +62,7 @@ def signup(request: UserSignupRequest, db: Session = Depends(get_db)):
         email=new_user.email,
         avatar_url=new_user.avatar_url,
         token=token,
+        auth_provider="email",
         message="Account created successfully."
     )
 
@@ -93,6 +101,7 @@ def login(request: UserLoginRequest, db: Session = Depends(get_db)):
         email=user.email,
         avatar_url=user.avatar_url,
         token=token,
+        auth_provider="email" if user.password_hash else "google",
         message="Login successful."
     )
 
@@ -148,5 +157,71 @@ def google_auth(request: GoogleAuthRequest, db: Session = Depends(get_db)):
         email=user.email,
         avatar_url=user.avatar_url,
         token=token,
+        auth_provider="google",
         message="Google authentication successful."
     )
+
+@router.get("/user/{user_id}", response_model=UserDetailsResponse)
+def get_user_details(user_id: str, db: Session = Depends(get_db)):
+    """
+    Retrieve user details for profile screen including authentication provider.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"message": "User not found."}
+        )
+
+    provider = "google" if not user.password_hash else "email"
+    return UserDetailsResponse(
+        id=user.id,
+        name=user.name,
+        email=user.email,
+        avatar_url=user.avatar_url,
+        auth_provider=provider,
+        created_at=user.created_at.strftime("%Y-%m-%d %H:%M:%S") if user.created_at else None
+    )
+
+@router.post("/change-password")
+def change_password(request: ChangePasswordRequest, db: Session = Depends(get_db)):
+    """
+    Changes user's password if registered with email/password.
+    Google OAuth accounts cannot change password via this endpoint.
+    """
+    user = db.query(User).filter(User.id == request.user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"field": "current_password", "message": "User not found."}
+        )
+
+    # Google users do not have a password_hash
+    if not user.password_hash:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "field": "general",
+                "message": "This account was created via Google. Password change is managed through Google."
+            }
+        )
+
+    # Verify current password
+    if not verify_password(request.current_password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"field": "current_password", "message": "The current password you entered is incorrect."}
+        )
+
+    if len(request.new_password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"field": "new_password", "message": "New password must be at least 6 characters long."}
+        )
+
+    # Hash new password and save
+    user.password_hash = hash_password(request.new_password)
+    db.commit()
+    logger.info(f"Password updated successfully for user: {user.email}")
+
+    return {"status": "success", "message": "Password changed successfully."}

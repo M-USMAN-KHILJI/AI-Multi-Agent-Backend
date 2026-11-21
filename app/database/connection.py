@@ -7,10 +7,11 @@ logger = logging.getLogger(__name__)
 
 # Normalize PostgreSQL scheme for SQLAlchemy
 database_url = settings.DATABASE_URL
-if database_url.startswith("postgres://"):
-    database_url = database_url.replace("postgres://", "postgresql+psycopg2://", 1)
-elif database_url.startswith("postgresql://") and not database_url.startswith("postgresql+psycopg2://"):
-    database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+if database_url:
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql+psycopg2://", 1)
+    elif database_url.startswith("postgresql://") and not database_url.startswith("postgresql+psycopg2://"):
+        database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 # Create engine
 engine = None
@@ -32,6 +33,17 @@ else:
     logger.warning("DATABASE_URL is not set. Database operations will be disabled.")
 
 Base = declarative_base()
+
+def init_db():
+    """
+    Creates tables if they do not exist. Called on startup.
+    """
+    if engine is not None:
+        try:
+            Base.metadata.create_all(bind=engine)
+            logger.info("Database tables verified/created successfully.")
+        except Exception as e:
+            logger.error(f"Error creating database tables: {e}")
 
 def get_db():
     """

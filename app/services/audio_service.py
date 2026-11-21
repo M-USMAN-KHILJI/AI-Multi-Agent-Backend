@@ -34,7 +34,12 @@ class AudioService:
 
     def _get_riva_client(self):
         if self._riva_client is None:
-            import riva.client
+            try:
+                import riva.client
+            except ImportError:
+                raise RuntimeError(
+                    "nvidia-riva-client is not installed. Please configure ELEVENLABS_API_KEY for TTS or install riva.client."
+                )
             auth = riva.client.Auth(
                 ssl_root_cert=None,
                 use_ssl=True,

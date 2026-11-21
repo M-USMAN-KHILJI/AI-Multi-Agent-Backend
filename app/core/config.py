@@ -1,8 +1,18 @@
 import os
+from pathlib import Path
 from typing import List
 from dotenv import load_dotenv
-# Load .env variables
-load_dotenv()
+
+# Explicitly load .env from the backend project root to prevent climbing up to parent directories
+_backend_root = Path(__file__).resolve().parent.parent.parent
+_env_path = _backend_root / ".env"
+if _env_path.exists():
+    try:
+        load_dotenv(dotenv_path=_env_path)
+    except Exception:
+        pass
+else:
+    load_dotenv()
 
 class Settings:
     PROJECT_NAME: str = os.getenv("PROJECT_NAME", "OmniAgent AI Platform")

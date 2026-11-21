@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from sqlalchemy.orm import Session
 from app.database.connection import get_db
 from app.database.models import User
-from app.schemas.auth_schema import UserSignupRequest, UserLoginRequest, UserAuthResponse
+from app.schemas.auth_schema import UserSignupRequest, UserLoginRequest, GoogleAuthRequest, UserAuthResponse
 from app.core.security import hash_password, verify_password
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,11 @@ def signup(request: UserSignupRequest, db: Session = Depends(get_db)):
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"field": "email", "message": "An account with this email address already exists."}
+            detail={
+                "field": "email",
+                "message": "This email is already registered. Redirecting you to login...",
+                "already_registered": True
+            }
         )
 
     # Securely hash password
@@ -35,7 +39,8 @@ def signup(request: UserSignupRequest, db: Session = Depends(get_db)):
     new_user = User(
         name=name_clean,
         email=email_clean,
-        password_hash=hashed_pwd
+        password_hash=hashed_pwd,
+        avatar_url=None
     )
     db.add(new_user)
     db.commit()
@@ -48,6 +53,7 @@ def signup(request: UserSignupRequest, db: Session = Depends(get_db)):
         id=new_user.id,
         name=new_user.name,
         email=new_user.email,
+        avatar_url=new_user.avatar_url,
         token=token,
         message="Account created successfully."
     )
@@ -85,7 +91,62 @@ def login(request: UserLoginRequest, db: Session = Depends(get_db)):
         id=user.id,
         name=user.name,
         email=user.email,
+        avatar_url=user.avatar_url,
         token=token,
         message="Login successful."
     )
 
+@router.post("/google", response_model=UserAuthResponse, status_code=status.HTTP_200_OK)
+def google_auth(request: GoogleAuthRequest, db: Session = Depends(get_db)):
+    """
+    Handles Firebase Google Sign-In:
+    - Captures Google full name, email, and Google profile picture.
+    - Saves and updates in PostgreSQL (modeldb).
+    - If called from Sign Up page (`is_signup=True`) and user already exists, notifies that the email is already registered.
+    """
+    email_clean = request.email.strip().lower()
+    name_clean = request.name.strip() if request.name else "Google User"
+    photo_url = request.photo_url.strip() if request.photo_url else None
+
+    user = db.query(User).filter(User.email == email_clean).first()
+
+    if user and request.is_signup:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "field": "email",
+                "message": "This Google account is already registered. Redirecting to login...",
+                "already_registered": True
+            }
+        )
+
+    if not user:
+        user = User(
+            name=name_clean,
+            email=email_clean,
+            password_hash=None,
+            avatar_url=photo_url
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        logger.info(f"Provisioned new user via Google with avatar in modeldb: {user.email}")
+    else:
+        # Update name and avatar if provided by Google
+        if photo_url and user.avatar_url != photo_url:
+            user.avatar_url = photo_url
+        if name_clean and user.name != name_clean:
+            user.name = name_clean
+        db.commit()
+        db.refresh(user)
+        logger.info(f"Updated user via Google in modeldb: {user.email}")
+
+    token = f"jwt_omni_g_{uuid.uuid4().hex}"
+    return UserAuthResponse(
+        id=user.id,
+        name=user.name,
+        email=user.email,
+        avatar_url=user.avatar_url,
+        token=token,
+        message="Google authentication successful."
+    )

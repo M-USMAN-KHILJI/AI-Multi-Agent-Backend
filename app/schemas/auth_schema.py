@@ -19,7 +19,6 @@ class UserSignupRequest(BaseModel):
     @classmethod
     def validate_email_format(cls, v: str) -> str:
         email = v.strip().lower()
-        # Must have user, @, domain name, dot, and TLD (e.g., name@gmail.com)
         email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         if not re.match(email_pattern, email):
             raise ValueError("Please enter a valid email address (e.g. yourname@gmail.com).")
@@ -36,10 +35,17 @@ class UserLoginRequest(BaseModel):
     email: str = Field(..., description="Email address or username")
     password: str = Field(..., description="Account password")
 
+class GoogleAuthRequest(BaseModel):
+    email: str = Field(..., description="Google Account email")
+    name: Optional[str] = Field(default="Google User", description="User's full name from Google")
+    uid: Optional[str] = Field(default=None, description="Firebase User UID")
+    photo_url: Optional[str] = Field(default=None, description="Google profile picture URL")
+    is_signup: Optional[bool] = Field(default=False, description="Flag indicating if request came from signup page")
+
 class UserAuthResponse(BaseModel):
     id: str
     name: str
     email: str
+    avatar_url: Optional[str] = None
     token: str
     message: str
-

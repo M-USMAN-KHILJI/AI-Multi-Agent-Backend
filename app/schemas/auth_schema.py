@@ -63,3 +63,16 @@ class UserDetailsResponse(BaseModel):
     avatar_url: Optional[str] = None
     auth_provider: str
     created_at: Optional[str] = None
+
+class ForgotPasswordRequest(BaseModel):
+    email: str = Field(..., description="User's email address")
+
+class VerifyOTPRequest(BaseModel):
+    email: str = Field(..., description="User's email address")
+    otp: str = Field(..., min_length=6, max_length=6, description="6-digit verification code")
+
+class ResetPasswordWithOTPRequest(BaseModel):
+    email: str = Field(..., description="User's email address")
+    otp: str = Field(..., min_length=6, max_length=6, description="6-digit verification code")
+    new_password: str = Field(..., min_length=6, max_length=128, description="New password")
+
